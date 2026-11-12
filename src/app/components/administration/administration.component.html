@@ -1,0 +1,15 @@
+@if (aviso(); as resultado) {
+  <p class="notice" [class.warning]="!resultado.ok" role="status">{{ resultado.mensaje }}</p>
+}
+  <section class="panel">
+    <h2>Tarifas y alertas</h2>
+    <p class="muted">La tarifa se fija al ingresar. El cobro es proporcional al tiempo real, incluidos minutos y segundos, con redondeo al céntimo al salir.</p>
+    <p class="muted">Configuración vigente: auto S/ {{ parking.configuracion().tarifas.auto | number:'1.2-2' }}/h,
+      moto S/ {{ parking.configuracion().tarifas.moto | number:'1.2-2' }}/h y alerta desde {{ parking.configuracion().umbral }} %.</p>
+    <form (ngSubmit)="guardarConfiguracion()" class="fields">
+      <label>Auto (S/ por hora) <input type="number" min="0" step=".01" required name="auto" [(ngModel)]="auto"></label>
+      <label>Moto (S/ por hora) <input type="number" min="0" step=".01" required name="moto" [(ngModel)]="moto"></label>
+      <label>Umbral de alerta (%) <input type="number" min="1" max="99" step="1" required name="umbral" [(ngModel)]="umbral"></label>
+      <div class="wide"><button class="primary" [disabled]="ocupado() || !parking.puedeGuardar">Guardar configuración</button></div>
+    </form>
+  </section>

@@ -1,0 +1,132 @@
+@let d = datos();
+<section class="panel filters no-print" aria-label="Filtros del estacionamiento">
+  @if (modo() === 'reportes') {
+    <div class="actions">
+      <button type="button" class="secondary" (click)="elegirPeriodo('dia')">Hoy</button>
+      <button type="button" class="secondary" (click)="elegirPeriodo('semana')">Esta semana</button>
+      <button type="button" class="secondary" (click)="elegirPeriodo('mes')">Este mes</button>
+    </div>
+  }
+  <div class="filter-fields">
+    <label>Desde <input type="date" [ngModel]="filtros().desde" (ngModelChange)="filtrar('desde', $event)"></label>
+    <label>Hasta <input type="date" [ngModel]="filtros().hasta" (ngModelChange)="filtrar('hasta', $event)"></label>
+    <label>Zona
+      <select [ngModel]="filtros().zona" (ngModelChange)="filtrar('zona', $event)">
+        <option value="">Todas</option>
+        @for (zona of zonas; track zona.id) { <option [value]="zona.id">Zona {{ zona.id }}</option> }
+      </select>
+    </label>
+    <label>Vehículo
+      <select [ngModel]="filtros().tipo" (ngModelChange)="filtrar('tipo', $event)">
+        <option value="">Todos</option>
+        @for (tipo of tipos; track tipo) { <option [value]="tipo">{{ tipo }}</option> }
+      </select>
+    </label>
+    <label>Perfil
+      <select [ngModel]="filtros().rol" (ngModelChange)="filtrar('rol', $event)">
+        <option value="">Todos</option>
+        @for (rol of roles; track rol) { <option [value]="rol">{{ rol }}</option> }
+      </select>
+    </label>
+    @if (modo() === 'historial') {
+      <label>Buscar placa <input [ngModel]="placa()" (ngModelChange)="placa.set($event)" placeholder="ABC-123" maxlength="16" class="plate"></label>
+    }
+  </div>
+</section>
+
+@if (!d.periodoValido) {
+  <p class="notice warning" role="status">Selecciona un rango de fechas válido.</p>
+} @else if (modo() === 'historial') {
+  <section class="panel">
+    <h2>Movimientos <small>({{ movimientos().length }})</small></h2>
+    <p class="muted">Incluye vehículos presentes en el período seleccionado. Horas de Lima.</p>
+    <app-movement-table [registros]="movimientos()" [detalles]="true" />
+  </section>
+} @else {
+  @if (modo() === 'reportes') {
+    <div class="report-header">
+      <p>Período {{ filtros().desde }} al {{ filtros().hasta }} · {{ filtros().zona ? 'Zona ' + filtros().zona : 'Todas las zonas' }}
+        · {{ filtros().tipo || 'Todos los vehículos' }} · {{ filtros().rol || 'Todos los perfiles' }}</p>
+      <div class="actions no-print">
+        <button type="button" class="primary" (click)="exportar()">Exportar CSV</button>
+        <button type="button" class="secondary" (click)="imprimir()">Imprimir o guardar PDF</button>
+      </div>
+    </div>
+  }
+  <div class="metrics">
+    <article class="metric"><span>Ingresos del período</span><strong>{{ d.entradas }}</strong></article>
+    <article class="metric"><span>Salidas del período</span><strong>{{ d.salidas }}</strong></article>
+    <article class="metric"><span>Estacionados ahora</span><strong>{{ d.activos }}</strong><small>{{ d.ocupacion | number:'1.0-1' }} % de los cupos de las zonas seleccionadas</small></article>
+    <article class="metric"><span>Tarifas de las salidas</span><strong>S/ {{ d.ingresos | number:'1.2-2' }}</strong><small>Importe calculado del período</small></article>
+  </div>
+
+  @if (modo() === 'estadisticas') {
+    <div class="chart-grid">
+      <section class="panel">
+        <h2>Ingresos por hora</h2>
+        <p class="muted">Más ingresos: {{ d.horasMayorEntrada.length ? d.horasMayorEntrada.join(', ') + ' · ' + d.mayorEntrada : 'Sin ingresos en el período' }}</p>
+        <app-parking-chart titulo="Ingresos por hora" [config]="graficos().ingresos" />
+      </section>
+      <section class="panel">
+        <h2>Pico de ocupación por hora</h2>
+        <p class="muted">Mayor ocupación: {{ d.horasMayorPico.length ? d.horasMayorPico.join(', ') + ' · ' + d.mayorPico + ' simultáneos' : 'Sin ocupación registrada' }}</p>
+        <app-parking-chart titulo="Pico de ocupación por hora" [config]="graficos().ocupacion" />
+      </section>
+    </div>
+  }
+
+  @if (modo() === 'estadisticas') {
+    <section class="panel"><h2>Ocupación promedio por hora</h2>
+      <app-parking-chart titulo="Ocupación promedio por hora en porcentaje" [config]="graficos().promedio" />
+    </section>
+  }
+  <div class="chart-grid">
+    <section class="panel">
+      <h2>Comparación por zona</h2>
+      <app-parking-chart titulo="Comparación por zona" [config]="graficos().zonas" />
+      <app-parking-chart titulo="Utilización por zona" [config]="graficos().uso" />
+      <p class="muted">La utilización mide el tiempo ocupado respecto a la capacidad del período transcurrido.</p>
+    </section>
+    <section class="panel">
+      <h2>Vehículos y permanencia</h2>
+      @if (d.entradas) {
+        <app-parking-chart titulo="Ingresos de autos y motos" [config]="graficos().vehiculos" />
+      } @else { <p class="empty">Sin ingresos en el período.</p> }
+      <p class="muted">Duraciones de los movimientos con salida registrada en el período.</p>
+      <dl class="durations">
+        <div><dt>Promedio</dt><dd>{{ duracion(d.permanencia.promedio) }}</dd></div>
+        <div><dt>Mínima</dt><dd>{{ duracion(d.permanencia.minimo) }}</dd></div>
+        <div><dt>Máxima</dt><dd>{{ duracion(d.permanencia.maximo) }}</dd></div>
+      </dl>
+      <div class="bar-list">
+        @for (t of d.tipos; track t.tipo) {
+          <div>
+            <label><span class="capitalize">{{ t.tipo }} · {{ t.entradas }} ingresos</span></label>
+            <p class="muted">Promedio {{ duracion(t.promedio) }} · Mín. {{ duracion(t.minimo) }} · Máx. {{ duracion(t.maximo) }}</p>
+          </div>
+        }
+      </div>
+    </section>
+  </div>
+
+  @if (modo() === 'estadisticas') {
+    <section class="panel">
+      <h2>Franjas de mayor ocupación estimada</h2>
+      @if (estimaciones().length) {
+        <ul class="forecast">
+          @for (e of estimaciones(); track e.dia + e.hora) {
+            <li><strong>{{ e.dia }} · {{ e.hora }}</strong><span>{{ e.ocupacion | number:'1.0-1' }} % promedio · {{ e.muestras }} semanas</span></li>
+          }
+        </ul>
+      } @else {
+        <p class="empty">Todavía no hay suficientes datos históricos para estimar estas franjas.</p>
+      }
+      <p class="muted">Se usan hasta 12 semanas de registros y al menos 4 observaciones por franja, con los filtros de zona, vehículo y perfil. La estimación no garantiza disponibilidad futura.</p>
+    </section>
+  } @else {
+    <section class="panel">
+      <h2>Movimientos del reporte</h2>
+      <app-movement-table [registros]="d.movimientos" [detalles]="true" />
+    </section>
+  }
+}
